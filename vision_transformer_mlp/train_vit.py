@@ -28,7 +28,7 @@ optimizer = torch.optim.Adam(model.parameters(), lr=learning_rate)
 def train_loop(dataloader, model, loss_fn, optimizer):
     size = len(dataloader.dataset)
     for batch, (X, y) in enumerate(dataloader):
-        # 예측(prediction)과 손실(loss) 계산
+        # compute prediction and loss.
 
         X = X.to(device)
         y = y.to(device)

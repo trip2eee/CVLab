@@ -44,7 +44,7 @@ class MultiHeadAttention(nn.Module):
     """
         Multi-Head Attention block
     """
-    def __init__(self, dim_embedding, num_heads):
+    def __init__(self, dim_embedding, num_heads, dropout):
         super(MultiHeadAttention, self).__init__()
 
         self.dim_embedding = dim_embedding
@@ -55,8 +55,10 @@ class MultiHeadAttention(nn.Module):
         self.values = nn.Linear(in_features=dim_embedding, out_features=dim_embedding)
         self.softmax = nn.Softmax(dim=-1)
 
-        self.dropout = nn.Dropout(0.0)
+        self.dropout = nn.Dropout(dropout)
         self.projection = nn.Linear(in_features=dim_embedding, out_features=dim_embedding)
+
+        assert self.dim_embedding % self.num_heads == 0
 
         self.d_k = self.dim_embedding // self.num_heads
         self.scale = self.d_k ** -0.5   # 1/sqrt(d_k)
@@ -73,9 +75,6 @@ class MultiHeadAttention(nn.Module):
         keys    = keys.reshape(batch, num_patches1, self.num_heads, self.d_k)
         queries = queries.reshape(batch, num_patches1, self.num_heads, self.d_k)
         values  = values.reshape(batch, num_patches1, self.num_heads, self.d_k)
-        # keys    = keys.chunk(self.d_k, dim=-1)
-        # queries = queries.chunk(self.d_k, dim=-1)
-        # values  = values.chunk(self.d_k, dim=-1)
 
         # (batch, num_heads, num_patches+1, d_k)
         keys    = keys.transpose(1, 2)
@@ -105,15 +104,15 @@ class FeedForwardBlock(nn.Module):
     """
         Feed-forward block
     """
-    def __init__(self, dim_embedding, expansion):
+    def __init__(self, dim_embedding, expansion, dropout):
         super(FeedForwardBlock, self).__init__()
 
         self.linear1 = nn.Linear(in_features=dim_embedding, out_features=dim_embedding*expansion)
         self.activation1 = nn.GELU()        
-        self.dropout1 = nn.Dropout(0.0)
+        self.dropout1 = nn.Dropout(dropout)
 
         self.linear2 = nn.Linear(in_features=dim_embedding*expansion, out_features=dim_embedding)
-        self.dropout2 = nn.Dropout(0.0)
+        self.dropout2 = nn.Dropout(dropout)
 
     def forward(self, x):
         y = self.linear1(x)
@@ -122,6 +121,32 @@ class FeedForwardBlock(nn.Module):
 
         y = self.linear2(y)
         y = self.dropout2(y)
+
+        return y
+
+class Transformer(nn.Module):
+    """
+        Transformer block
+    """
+    def __init__(self, dim_embedding, num_heads, expansion=4, dropout=0.0):
+        super(Transformer, self).__init__()
+
+        self.layer_norm1 = nn.LayerNorm(dim_embedding)
+        self.mha = MultiHeadAttention(dim_embedding=dim_embedding, num_heads=num_heads, dropout=dropout)
+
+        self.layer_norm2 = nn.LayerNorm(dim_embedding)
+
+        self.feedforward = FeedForwardBlock(dim_embedding=dim_embedding, expansion=expansion, dropout=dropout)
+
+    def forward(self, x):
+        y = self.layer_norm1(x)
+        y_mha = self.mha(y)
+
+        y = y + y_mha
+        y = self.layer_norm2(y)
+
+        y_ff = self.feedforward(y)
+        y = y + y_ff
 
         return y
 
@@ -141,32 +166,6 @@ class MLPHead(nn.Module):
 
         return y
 
-class Transformer(nn.Module):
-    """
-        Transformer block
-    """
-    def __init__(self, dim_embedding, num_heads):
-        super(Transformer, self).__init__()
-
-        self.layer_norm1 = nn.LayerNorm(dim_embedding)
-        self.mha = MultiHeadAttention(dim_embedding=dim_embedding, num_heads=num_heads)
-
-        self.layer_norm2 = nn.LayerNorm(dim_embedding)
-
-        self.feedforward = FeedForwardBlock(dim_embedding=dim_embedding, expansion=4)
-
-    def forward(self, x):
-        y = self.layer_norm1(x)
-        y_mha = self.mha(y)
-
-        y = y + y_mha
-        y = self.layer_norm2(y)
-
-        y_ff = self.feedforward(y)
-        y = y + y_ff
-
-        return y
-
 class ShapeViT(nn.Module):
     """
         Simple shape classifier using Vision Trasnformer (ViT)
@@ -175,12 +174,11 @@ class ShapeViT(nn.Module):
         super(ShapeViT, self).__init__()
 
         self.num_classes = 2
-
         self.image_width = 48
         self.image_height = 48
+        self.in_channels = 3    # RGB image
         self.patch_rows = 3
         self.patch_cols = 3
-
         self.num_heads = 8
         self.dim_embedding = 64
 
@@ -193,11 +191,11 @@ class ShapeViT(nn.Module):
         self.num_patches = self.patch_cols * self.patch_rows
     
         # Image patch embedding
-        self.patch_to_embedding = PatchEmbedding(patch_width=self.patch_width, patch_height=self.patch_height, in_channels=3, dim_embedding=self.dim_embedding)
+        self.patch_to_embedding = PatchEmbedding(patch_width=self.patch_width, patch_height=self.patch_height, in_channels=self.in_channels, dim_embedding=self.dim_embedding)
         
         # Position embedding.
         self.pos_embedding = nn.Parameter(torch.randn(1, self.num_patches+1, self.dim_embedding))
-        self.transformer = Transformer(dim_embedding=self.dim_embedding, num_heads=self.num_heads)
+        self.transformer = Transformer(dim_embedding=self.dim_embedding, num_heads=self.num_heads, dropout=0.3)
         self.mlp_head = MLPHead(dim_embedding=self.dim_embedding, num_classes=self.num_classes)
 
     def forward(self, x):
@@ -213,8 +211,5 @@ class ShapeViT(nn.Module):
 
         return y
 
-if __name__ == "__main__":
-
-    model = ShapeViT()
 
 
