@@ -141,6 +141,32 @@ class MLPHead(nn.Module):
 
         return y
 
+class Transformer(nn.Module):
+    """
+        Transformer block
+    """
+    def __init__(self, dim_embedding, num_heads):
+        super(Transformer, self).__init__()
+
+        self.layer_norm1 = nn.LayerNorm(dim_embedding)
+        self.mha = MultiHeadAttention(dim_embedding=dim_embedding, num_heads=num_heads)
+
+        self.layer_norm2 = nn.LayerNorm(dim_embedding)
+
+        self.feedforward = FeedForwardBlock(dim_embedding=dim_embedding, expansion=4)
+
+    def forward(self, x):
+        y = self.layer_norm1(x)
+        y_mha = self.mha(y)
+
+        y = y + y_mha
+        y = self.layer_norm2(y)
+
+        y_ff = self.feedforward(y)
+        y = y + y_ff
+
+        return y
+
 class ShapeViT(nn.Module):
     """
         Simple shape classifier using Vision Trasnformer (ViT)
@@ -166,38 +192,21 @@ class ShapeViT(nn.Module):
         self.patch_height = self.image_height // self.patch_rows
         self.num_patches = self.patch_cols * self.patch_rows
     
+        # Image patch embedding
         self.patch_to_embedding = PatchEmbedding(patch_width=self.patch_width, patch_height=self.patch_height, in_channels=3, dim_embedding=self.dim_embedding)
         
         # Position embedding.
         self.pos_embedding = nn.Parameter(torch.randn(1, self.num_patches+1, self.dim_embedding))
-
-        self.layer_norm1 = nn.LayerNorm(self.dim_embedding)
-        self.mha = MultiHeadAttention(dim_embedding=self.dim_embedding, num_heads=self.num_heads)
-
-        self.layer_norm2 = nn.LayerNorm(self.dim_embedding)
-
-        self.feedforward = FeedForwardBlock(dim_embedding=self.dim_embedding, expansion=4)
-
-        self.to_latent = nn.Identity()
-
+        self.transformer = Transformer(dim_embedding=self.dim_embedding, num_heads=self.num_heads)
         self.mlp_head = MLPHead(dim_embedding=self.dim_embedding, num_classes=self.num_classes)
 
     def forward(self, x):
         y = self.patch_to_embedding(x)
         y += self.pos_embedding
 
-        y = self.layer_norm1(y)
-        y_mha = self.mha(y)
+        y = self.transformer(y)
 
-        y = y + y_mha
-        y = self.layer_norm2(y)
-
-        y_ff = self.feedforward(y)
-
-        y = y + y_ff
-
-        y = self.to_latent(y)
-
+        # (batch, patches+1, dim_embedding) -> (batch, dim_embedding)
         y = y.mean(dim=1)
 
         y = self.mlp_head(y)
