@@ -10,8 +10,8 @@ num_class = 2
 num_data = 32
 num_color = 3
 
-image_cols = 3
-image_rows = 3
+image_cols = 4
+image_rows = 4
 image_width = 224
 image_height = 224
 
