@@ -36,7 +36,7 @@ class ShapeCNN(nn.Module):
 
             nn.Flatten(),
 
-            nn.Dropout(0.5),
+            nn.Dropout(0.3),
 
             nn.Linear(in_features=3*3*out_channels*4, out_features=num_classes)
         )

@@ -138,6 +138,8 @@ class Transformer(nn.Module):
 
         self.feedforward = FeedForwardBlock(dim_embedding=dim_embedding, expansion=expansion, dropout=dropout)
 
+        self.layer_norm3 = nn.LayerNorm(dim_embedding)
+
     def forward(self, x):
         y = self.layer_norm1(x)
         y_mha = self.mha(y)
@@ -148,6 +150,8 @@ class Transformer(nn.Module):
         y_ff = self.feedforward(y)
         y = y + y_ff
 
+        y = self.layer_norm3(y)
+
         return y
 
 class MLPHead(nn.Module):
@@ -156,13 +160,15 @@ class MLPHead(nn.Module):
     """
     def __init__(self, dim_embedding, num_classes):
         super(MLPHead, self).__init__()
-
-        self.layer_norm = nn.LayerNorm(dim_embedding)
-        self.linear = nn.Linear(in_features=dim_embedding, out_features=num_classes)
+        
+        self.linear1 = nn.Linear(in_features=dim_embedding, out_features=dim_embedding//2)
+        self.relu = nn.ReLU()
+        self.linear2 = nn.Linear(in_features=dim_embedding//2, out_features=num_classes)
 
     def forward(self, x):
-        y = self.layer_norm(x)
-        y = self.linear(y)
+        y = self.linear1(x)
+        y = self.relu(y)
+        y = self.linear2(y)
 
         return y
 
