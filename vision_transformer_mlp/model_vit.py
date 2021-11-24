@@ -132,25 +132,18 @@ class Transformer(nn.Module):
         super(Transformer, self).__init__()
 
         self.layer_norm1 = nn.LayerNorm(dim_embedding)
-        self.mha = MultiHeadAttention(dim_embedding=dim_embedding, num_heads=num_heads, dropout=dropout)
-
+        self.msa = MultiHeadAttention(dim_embedding=dim_embedding, num_heads=num_heads, dropout=dropout)
         self.layer_norm2 = nn.LayerNorm(dim_embedding)
-
-        self.feedforward = FeedForwardBlock(dim_embedding=dim_embedding, expansion=expansion, dropout=dropout)
-
-        self.layer_norm3 = nn.LayerNorm(dim_embedding)
+        self.feedforward = FeedForwardBlock(dim_embedding=dim_embedding, expansion=expansion, dropout=dropout)        
 
     def forward(self, x):
         y = self.layer_norm1(x)
-        y_mha = self.mha(y)
+        y_msa = self.msa(y)     # Multiheaded Self-Attention
+        y = y + y_msa
 
-        y = y + y_mha
         y = self.layer_norm2(y)
-
         y_ff = self.feedforward(y)
-        y = y + y_ff
-
-        y = self.layer_norm3(y)
+        y = y + y_ff     
 
         return y
 
@@ -161,12 +154,14 @@ class MLPHead(nn.Module):
     def __init__(self, dim_embedding, num_classes):
         super(MLPHead, self).__init__()
         
+        self.layer_norm = nn.LayerNorm(dim_embedding)
         self.linear1 = nn.Linear(in_features=dim_embedding, out_features=dim_embedding//2)
         self.relu = nn.ReLU()
         self.linear2 = nn.Linear(in_features=dim_embedding//2, out_features=num_classes)
 
     def forward(self, x):
-        y = self.linear1(x)
+        y = self.layer_norm(x)
+        y = self.linear1(y)
         y = self.relu(y)
         y = self.linear2(y)
 
