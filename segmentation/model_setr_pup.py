@@ -74,32 +74,33 @@ class SETR_PUP(nn.Module):
         # TODO: To check if layer norm improves performance.
         # self.layer_norm = nn.LayerNorm(self.dim_embedding)
 
+        shrink = 4
         self.conv1 = nn.Sequential(
             nn.Conv2d(in_channels=self.dim_embedding, out_channels=self.dim_embedding, kernel_size=3, padding=1),
             nn.ReLU(),
-            nn.UpsamplingNearest2d(scale_factor=2)
+            nn.UpsamplingBilinear2d(scale_factor=2)
         )
 
         self.conv2 = nn.Sequential(
-            nn.Conv2d(in_channels=self.dim_embedding, out_channels=self.dim_embedding//4, kernel_size=3, padding=1),
+            nn.Conv2d(in_channels=self.dim_embedding, out_channels=self.dim_embedding//shrink, kernel_size=3, padding=1),
             nn.ReLU(),
-            nn.UpsamplingNearest2d(scale_factor=2)
+            nn.UpsamplingBilinear2d(scale_factor=2)
         )
 
         self.conv3 = nn.Sequential(
-            nn.Conv2d(in_channels=self.dim_embedding//4, out_channels=self.dim_embedding//4, kernel_size=3, padding=1),
+            nn.Conv2d(in_channels=self.dim_embedding//shrink, out_channels=self.dim_embedding//shrink, kernel_size=3, padding=1),
             nn.ReLU(),
-            nn.UpsamplingNearest2d(scale_factor=2)
+            nn.UpsamplingBilinear2d(scale_factor=2)
         )
 
         self.conv4 = nn.Sequential(
-            nn.Conv2d(in_channels=self.dim_embedding//4, out_channels=self.dim_embedding//4, kernel_size=3, padding=1),
+            nn.Conv2d(in_channels=self.dim_embedding//shrink, out_channels=self.dim_embedding//shrink, kernel_size=3, padding=1),
             nn.ReLU(),
-            nn.UpsamplingNearest2d(scale_factor=2)
+            nn.UpsamplingBilinear2d(scale_factor=2)
         )
 
         self.conv5 = nn.Sequential(
-            nn.Conv2d(in_channels=self.dim_embedding//4, out_channels=self.num_classes, kernel_size=1)
+            nn.Conv2d(in_channels=self.dim_embedding//shrink, out_channels=self.num_classes, kernel_size=1)
         )
 
     def forward(self, x):
@@ -108,8 +109,6 @@ class SETR_PUP(nn.Module):
         y += self.pos_embedding
 
         y = self.transformers(y)
-
-        # y = self.layer_norm(y)
         
         # y: (batch, patches+1, dim_embedding) -> (batch, patch rows, patch cols, dim_embedding)
         y = y.reshape(-1, self.patch_rows, self.patch_cols, self.dim_embedding)

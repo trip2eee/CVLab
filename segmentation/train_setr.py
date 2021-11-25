@@ -2,7 +2,8 @@ from image_dataset import ImageData
 from torch.utils.data import DataLoader
 import torch
 from torch import nn
-from model_setr import SETR_PUP
+from model_setr_pup import SETR_PUP
+from model_setr_mla import SETR_MLA
 
 
 device = 'cuda' if torch.cuda.is_available() else 'cpu'
@@ -12,13 +13,15 @@ data_train = ImageData('train')
 data_validation = ImageData('validation')
 
 batch_size = 4
-learning_rate = 1e-4
+learning_rate = 1e-5
 epochs = 500
 
 train_dataloader = DataLoader(data_train, batch_size=batch_size, shuffle=True)
 validation_dataloader = DataLoader(data_validation, batch_size=batch_size, shuffle=True)
 
-model = SETR_PUP().to(device)
+# model = SETR_PUP().to(device)
+model = SETR_MLA().to(device)
+
 
 loss_cross_entropy = nn.CrossEntropyLoss()
 def loss_fn(pred, y):
